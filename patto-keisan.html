@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>パッと計算 ― 共テ数学 瞬発トレーニング</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --ink:#1f2328; --sub:#6b6f76; --card:#fffdf8; --line:#e2ddd2;
+    --accent:#2b59c3; --ok:#1f9d55; --ng:#d64545; --warn:#e0a100;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic UI",system-ui,sans-serif;
+    display:flex;justify-content:center;}
+  #app{width:100%;max-width:520px;min-height:100%;padding:20px 16px 28px;display:flex;flex-direction:column}
+  .screen{display:none;flex:1;flex-direction:column}
+  .screen.active{display:flex}
+
+  /* ---------- start ---------- */
+  h1{font-size:34px;margin:28px 0 4px;letter-spacing:.04em}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--sub);margin:0 0 24px;font-size:14px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 16px 18px;margin-bottom:20px}
+  .label{font-size:13px;color:var(--sub);font-weight:700;margin:4px 0 10px}
+  .label:not(:first-child){margin-top:18px}
+  .seg{display:flex;gap:8px}
+  .seg button,.chip{flex:1;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:12px 0;font-size:16px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit}
+  .seg button.on,.chip.on{border-color:var(--accent);background:var(--accent);color:#fff}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{flex:0 0 auto;padding:9px 14px;font-size:14px}
+  .primary{width:100%;border:none;background:var(--ink);color:#fff;font-size:20px;font-weight:800;padding:18px;border-radius:16px;cursor:pointer;font-family:inherit;letter-spacing:.1em}
+  .primary:active{transform:scale(.98)}
+  .secondary{width:100%;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-size:16px;font-weight:700;padding:14px;border-radius:16px;cursor:pointer;font-family:inherit;margin-top:10px}
+  .best{text-align:center;color:var(--sub);font-size:13px;margin-top:14px;min-height:1em}
+  .tip{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.6}
+
+  /* ---------- game ---------- */
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .time{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;min-width:90px}
+  .time small{font-size:14px;color:var(--sub);margin-left:2px}
+  .time.low{color:var(--ng)}
+  .score{font-size:16px;font-weight:700;color:var(--sub)}
+  .score b{color:var(--ok);font-size:20px}
+  .ghost{border:1.5px solid var(--line);background:#fff;border-radius:10px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;color:var(--ink)}
+  .bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:12px 0 18px}
+  #barFill{height:100%;width:100%;background:var(--accent);border-radius:99px}
+  #barFill.low{background:var(--ng)}
+  .card{position:relative;background:var(--card);border:2px solid var(--line);border-radius:20px;min-height:200px;padding:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:border-color .1s,background .1s}
+  .card.ok{border-color:var(--ok);background:#effaf3}
+  .card.ng{border-color:var(--ng);background:#fdf0f0}
+  .cat{position:absolute;top:12px;left:14px;font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);padding:3px 9px;border-radius:99px}
+  .qno{position:absolute;top:12px;right:14px;font-size:12px;color:var(--sub)}
+  .q{font-size:30px;font-weight:600;text-align:center;line-height:1.5;padding-top:14px;font-family:"Times New Roman","Hiragino Mincho ProN","Noto Serif JP",serif}
+  .q .ask{display:block;font-size:15px;font-family:"Hiragino Sans","Noto Sans JP",sans-serif;color:var(--sub);margin-top:6px}
+  .q .ask b{color:var(--ink)}
+  .mark{position:absolute;right:16px;bottom:8px;font-size:44px;font-weight:900;opacity:0}
+  .card.ok .mark{opacity:1;color:var(--ok)}
+  .card.ng .mark{opacity:1;color:var(--ng)}
+  .choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+  .choices.cmp{grid-template-columns:1fr 1fr 1fr}
+  .choice{min-height:72px;border:2px solid var(--line);background:#fff;border-radius:16px;font-size:24px;font-weight:600;cursor:pointer;color:var(--ink);font-family:"Times New Roman","Hiragino Mincho ProN","Noto Serif JP",serif;display:flex;align-items:center;justify-content:center;padding:6px;position:relative}
+  .choices.cmp .choice{font-size:34px;font-family:inherit;min-height:84px}
+  .choice:active{transform:scale(.97)}
+  .choice.right{border-color:var(--ok);background:var(--ok);color:#fff}
+  .choice.wrong{border-color:var(--ng);background:var(--ng);color:#fff}
+  .choice .k{position:absolute;top:4px;left:8px;font-size:11px;color:#b3aea3;font-family:sans-serif}
+  .choice.right .k,.choice.wrong .k{color:rgba(255,255,255,.7)}
+
+  /* math pieces */
+  .fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.8em;margin:0 .12em;line-height:1.15}
+  .fr>span:first-child{border-bottom:1.6px solid currentColor;padding:0 .2em .05em}
+  .fr>span:last-child{padding:.05em .2em 0}
+  .sq{white-space:nowrap}
+  .sq .ov{border-top:1.6px solid currentColor;padding:0 .08em 0 .04em;margin-left:-.02em}
+  sup{font-size:.6em;vertical-align:.75em;line-height:0}
+  sub{font-size:.6em;line-height:0}
+  .cmpq{display:inline-flex;align-items:center;gap:.4em;flex-wrap:wrap;justify-content:center}
+  .box{display:inline-flex;width:1.3em;height:1.3em;border:2px dashed var(--sub);border-radius:6px;align-items:center;justify-content:center;font-size:.7em;color:var(--sub);font-family:sans-serif}
+
+  /* ---------- result ---------- */
+  .resTitle{font-size:16px;color:var(--sub);font-weight:700;text-align:center;margin:22px 0 6px}
+  .ring{width:190px;height:190px;margin:0 auto 6px;position:relative}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .pct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ring .pct b{font-size:46px;font-weight:900;font-variant-numeric:tabular-nums}
+  .ring .pct span{font-size:13px;color:var(--sub)}
+  .comment{text-align:center;font-weight:700;margin:6px 0 16px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 6px;text-align:center}
+  .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:11px;color:var(--sub)}
+  .newbest{color:var(--warn);font-weight:800;text-align:center;margin-bottom:10px}
+  .review{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px;max-height:320px;overflow:auto}
+  .review h3{font-size:14px;margin:0 0 8px;color:var(--sub)}
+  .rv{border-top:1px solid var(--line);padding:10px 0}
+  .rv:first-of-type{border-top:none}
+  .rv .rq{font-size:20px;font-family:"Times New Roman","Hiragino Mincho ProN",serif;margin-bottom:4px}
+  .rv .rq .ask{font-size:12px;color:var(--sub);font-family:sans-serif;margin-left:6px}
+  .rv .ra{font-size:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .rv .ra .y{color:var(--ng)}
+  .rv .ra .c{color:var(--ok);font-weight:700}
+  .rv .ra .v{font-family:"Times New Roman","Hiragino Mincho ProN",serif;font-size:18px}
+  .empty{color:var(--sub);font-size:14px;text-align:center;padding:8px}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- START -->
+  <section id="start" class="screen active">
+    <h1>パッと<span>計算</span></h1>
+    <p class="sub">共テ数学の「うっかりミス」をなくす瞬発トレーニング</p>
+    <div class="panel">
+      <div class="label">制限時間</div>
+      <div class="seg" id="timeSeg">
+        <button data-t="30" class="on">30秒</button>
+        <button data-t="60">60秒</button>
+        <button data-t="90">90秒</button>
+      </div>
+      <div class="label">出題ジャンル</div>
+      <div class="chips" id="cats"></div>
+      <div class="tip">時間内にできるだけ多く解こう。「終了」でいつでもやめられるよ。</div>
+    </div>
+    <button id="startBtn" class="primary">スタート</button>
+    <p class="best" id="best"></p>
+  </section>
+
+  <!-- GAME -->
+  <section id="game" class="screen">
+    <div class="top">
+      <div class="time" id="time"><span id="sec">30.0</span><small>秒</small></div>
+      <div class="score"><b id="cCount">0</b> / <span id="aCount">0</span> 問</div>
+      <button id="quitBtn" class="ghost">終了</button>
+    </div>
+    <div class="bar"><div id="barFill"></div></div>
+    <div class="card" id="card">
+      <div class="cat" id="qCat"></div>
+      <div class="qno" id="qNo"></div>
+      <div class="q" id="qText"></div>
+      <div class="mark" id="mark"></div>
+    </div>
+    <div class="choices" id="choices"></div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="result" class="screen">
+    <div class="resTitle" id="resTitle">結果</div>
+    <div class="ring">
+      <svg width="190" height="190" viewBox="0 0 190 190">
+        <circle cx="95" cy="95" r="80" fill="none" stroke="#e2ddd2" stroke-width="14"/>
+        <circle id="ringArc" cx="95" cy="95" r="80" fill="none" stroke="#1f9d55" stroke-width="14" stroke-linecap="round" stroke-dasharray="502.65" stroke-dashoffset="502.65" style="transition:stroke-dashoffset .9s ease"/>
+      </svg>
+      <div class="pct"><b id="pct">0%</b><span>正答率</span></div>
+    </div>
+    <div class="comment" id="comment"></div>
+    <div class="newbest" id="newBest"></div>
+    <div class="stats">
+      <div class="stat"><b id="sCorrect">0</b><span>正解</span></div>
+      <div class="stat"><b id="sAns">0</b><span>解答数</span></div>
+      <div class="stat"><b id="sPace">-</b><span>1問あたり(秒)</span></div>
+    </div>
+    <div class="review" id="review"></div>
+    <button id="retryBtn" class="primary">もう一度</button>
+    <button id="backBtn" class="secondary">設定に戻る</button>
+  </section>
+</div>
+
+<script>
+/* ================= helpers ================= */
+const $ = s => document.querySelector(s);
+const M = '−';
+const ri = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const nz = (a,b) => { let x; do { x = ri(a,b); } while (x === 0); return x; };
+const gcd = (a,b) => { a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a; };
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+const n2  = n => n<0 ? M+(-n) : ''+n;                 // 数
+const par = n => n<0 ? '('+M+(-n)+')' : ''+n;         // 負なら括弧
+const frx = (a,b) => `<span class="fr"><span>${a}</span><span>${b}</span></span>`;
+function fr(n,d){                                      // 約分した分数
+  if (d<0){ n=-n; d=-d; }
+  if (n===0) return '0';
+  const g=gcd(n,d); n/=g; d/=g;
+  if (d===1) return n2(n);
+  return (n<0?M:'') + frx(Math.abs(n), d);
+}
+const sq = m => `<span class="sq">√<span class="ov">${m}</span></span>`;
+function simp(m){ let c=1, r=m; for(let i=2;i*i<=r;i++){ while(r%(i*i)===0){ r/=i*i; c*=i; } } return [c,r]; }
+function surd(k,m){                                    // k√m を簡約して表示
+  if (k===0) return '0';
+  const [c,r]=simp(m); k*=c;
+  if (r===1) return n2(k);
+  const a=Math.abs(k);
+  return (k<0?M:'') + (a===1?'':a) + sq(r);
+}
+const raw = (k,m) => (k===1?'':k) + sq(m);             // 簡約しない k√m
+const lg  = (b,x) => `log<sub>${b}</sub>${x}`;
+const pw  = (b,e) => `${b}<sup>${e}</sup>`;
+const isPow = (x,b) => { while(x>1 && x%b===0) x/=b; return x===1; };
+
+function mc(cat, q, ans, ds, filler){
+  const ch=[ans];
+  for (const d of ds){ if (d!=null && !ch.includes(d) && ch.length<4) ch.push(d); }
+  let t=0;
+  while (ch.length<4 && t++<80){ const d=filler(); if (d!=null && !ch.includes(d)) ch.push(d); }
+  shuffle(ch);
+  return { cat, type:'mc', q, choices:ch, answer:ch.indexOf(ans) };
+}
+
+/* ================= generators ================= */
+// 正負・累乗・割り算
+function gSign(){
+  const t=ri(0,2);
+  if (t===0){
+    const a=nz(-9,9), b=ri(2,9), c=nz(-9,9), ans=a-b*c;
+    return mc('計算', `${n2(a)} − ${b} × ${par(c)}`, n2(ans),
+      [n2((a-b)*c), n2(a+b*c), n2(-ans)], ()=>n2(ans+nz(-6,6)));
+  }
+  if (t===1){
+    const a=ri(2,7), b=ri(2,7), ans=-a*a+b*b;
+    return mc('計算', `${M}${a}<sup>2</sup> + (${M}${b})<sup>2</sup>`, n2(ans),
+      [n2(a*a+b*b), n2(-a*a-b*b), n2(a*a-b*b)], ()=>n2(ans+nz(-5,5)));
+  }
+  const y=nz(-6,6), w=nz(-6,6), z=nz(-5,5), x=y*w, ans=w*z;
+  return mc('計算', `${n2(x)} ÷ ${par(y)} × ${par(z)}`, n2(ans),
+    [fr(x,y*z), n2(-ans), n2(w+z)], ()=>n2(ans+nz(-6,6)));
+}
+// 分数
+function gFrac(){
+  let q1=ri(2,9), q2; do { q2=ri(2,9); } while(q2===q1);
+  const p1=ri(1,q1+2), p2=ri(1,q2+2);
+  if (Math.random()<0.65){
+    const s=pick([1,-1]);
+    const ans=fr(p1*q2+s*p2*q1, q1*q2);
+    return mc('計算', `${fr(p1,q1)} ${s>0?'+':'−'} ${fr(p2,q2)}`, ans,
+      [fr(p1+s*p2, q1+q2), fr(p1*q2-s*p2*q1, q1*q2), fr(p1+s*p2, q1*q2)],
+      ()=>fr(p1*q2+s*p2*q1+nz(-3,3), q1*q2));
+  }
+  const ans=fr(p1*q2, q1*p2);
+  return mc('計算', `${fr(p1,q1)} ÷ ${fr(p2,q2)}`, ans,
+    [fr(p1*p2, q1*q2), fr(q1*p2, p1*q2), fr(p1*q2+1, q1*p2)],
+    ()=>fr(ri(1,15), ri(2,12)));
+}
+// 展開
+function gExpand(){
+  const p=pick([1,1,1,2,3]), q=pick([1,1,2,3]), a=nz(-6,6), b=nz(-6,6);
+  const tx=c=>c===1?'x':c+'x', tc=c=>c<0?` − ${-c}`:` + ${c}`;
+  const expr=`(${tx(p)}${tc(a)})(${tx(q)}${tc(b)})`;
+  if (Math.random()<0.7){
+    const ans=p*b+q*a;
+    return mc('計算', `${expr}<span class="ask">を展開したときの <b>x の係数</b></span>`, n2(ans),
+      [n2(p*a+q*b), n2(a+b), n2(-ans), n2(a*b)], ()=>n2(ans+nz(-4,4)));
+  }
+  const ans=a*b;
+  return mc('計算', `${expr}<span class="ask">を展開したときの <b>定数項</b></span>`, n2(ans),
+    [n2(-ans), n2(a+b), n2(p*q*a*b===ans?ans+p:p*q*a*b)], ()=>n2(ans+nz(-5,5)));
+}
+// ルート
+function gSqrt(){
+  const t=ri(0,2);
+  if (t===0){
+    const m=pick([2,3,5,6,7]), kmax=(m>=6?3:4);
+    let k1,k2; do { k1=ri(1,kmax); k2=ri(1,kmax); } while(k1===k2 || Math.max(k1,k2)<2);
+    const s=pick([1,-1]);
+    if (s<0 && k1<k2) [k1,k2]=[k2,k1];
+    const a=k1*k1*m, b=k2*k2*m;
+    return mc('ルート', `${sq(a)} ${s>0?'+':'−'} ${sq(b)}`, surd(k1+s*k2, m),
+      [surd(1, a+s*b), surd(k1-s*k2, m), surd(k1+s*k2+1, m), surd(k1*k2, m)],
+      ()=>surd(nz(-5,7), m));
+  }
+  if (t===1){
+    const P=[2,3,5,6,7,8,10,12,14,15,18,20,21];
+    let a,b; do { a=pick(P); b=pick(P); } while(a===b || simp(a*b)[0]===1);
+    const [c,r]=simp(a*b);
+    return mc('ルート', `${sq(a)} × ${sq(b)}`, surd(1,a*b),
+      [surd(1,a+b), surd(c+1,r), c>1?surd(c-1,r):null, surd(c*2,r)],
+      ()=>surd(ri(1,8), pick([1,2,3,5,6,7,10])));
+  }
+  const m=pick([2,3,5,6]), k=ri(1,4), n=m*k;
+  return mc('ルート', frx(n, sq(m)), surd(k,m),
+    [surd(n,m), n2(k), surd(1,n), surd(k+1,m)], ()=>surd(ri(1,6), m));
+}
+// 指数
+function gPow(){
+  if (Math.random()<0.55){
+    const B=pick([2,3]), lo=B===2?-3:-2, hi=B===2?5:3;
+    let a,b,c,k; do { a=ri(-2,4); b=ri(-2,4); c=ri(-2,4); k=a+b-c; } while(k<lo||k>hi||a===0||b===0||c===0);
+    const val=e=> e>=0 ? n2(B**e) : fr(1, B**(-e));
+    const ok=e=> e>=-4 && e<=6;
+    return mc('指数・対数', `${pw(B,n2(a))} × ${pw(B,n2(b))} ÷ ${pw(B,n2(c))}`, val(k),
+      [a*b-c, a+b+c, -k, k+1].filter(ok).map(val),
+      ()=>{ const e=k+nz(-3,3); return ok(e)?val(e):null; });
+  }
+  const T=[[8,2,3],[27,2,3],[16,3,4],[4,3,2],[9,3,2],[32,2,5],[8,-1,3],[9,-1,2],[16,-1,2],[27,-2,3],[64,2,3],[25,3,2],[16,-3,4],[4,-3,2]];
+  const [base,num,den]=pick(T), root=Math.round(base**(1/den)), an=Math.abs(num);
+  const ans = num>=0 ? n2(root**num) : fr(1, root**an);
+  const ex = (num<0?M:'') + an + '/' + den;
+  return mc('指数・対数', pw(base, ex), ans,
+    [num>=0 ? fr(1,root**an) : n2(root**an), n2(root**(an+1)), fr(base*an, den), n2(root*an)],
+    ()=>n2(ri(2,30)));
+}
+// 対数
+function gLog(){
+  const t=ri(0,3);
+  if (t<=1){
+    const b=pick([2,3]), tt=pick(b===2?[3,5,6,7,10]:[2,4,5,7,10]), k=ri(1, b===2?3:2);
+    const q = t===0 ? `${lg(b,tt*b**k)} − ${lg(b,tt)}` : `${lg(b,tt)} + ${lg(b,fr(b**k,tt))}`;
+    return mc('指数・対数', q, n2(k), [n2(k+1), n2(-k), n2(b**k), n2(2*k), n2(k-1)], ()=>n2(k+nz(-3,3)));
+  }
+  if (t===2){
+    const E=[[2,2,3],[3,2,3],[2,3,2],[2,3,1],[2,2,1],[3,3,2],[2,4,3],[2,-1,3],[3,-1,2],[2,3,4],[5,2,1],[2,-2,3]];
+    const [p,a,c]=pick(E);
+    const base = a>0 ? ''+p**a : '1/'+p**(-a);
+    return mc('指数・対数', lg(base, p**c), fr(c,a),
+      [fr(a,c), fr(-c,a), fr(c+1,a), n2(c)], ()=>fr(nz(-4,4), ri(1,4)));
+  }
+  const E=[[2,fr(1,8),-3,1],[3,fr(1,9),-2,1],[2,sq(2),1,2],[3,sq(3),1,2],[2,'4'+sq(2),5,2],[3,'3'+sq(3),3,2],[5,fr(1,25),-2,1],[2,frx(1,sq(2)),-1,2],[10,'0.01',-2,1],[10,'1000',3,1]];
+  const [b,x,n,d]=pick(E);
+  return mc('指数・対数', lg(b,x), fr(n,d), [fr(-n,d), fr(d,n), fr(-d,n), fr(n+d,d)], ()=>fr(nz(-4,4), ri(1,2)));
+}
+// 三角比
+const HALF=frx(1,2), R2=frx(sq(2),2), R3=frx(sq(3),2), I3=frx(1,sq(3));
+const SC=[[0,'0'],[.5,HALF],[Math.SQRT2/2,R2],[Math.sqrt(3)/2,R3],[1,'1']];
+const TN=[[0,'0'],[1/Math.sqrt(3),I3],[1,'1'],[Math.sqrt(3),sq(3)]];
+function tv(v,tab){
+  const a=Math.abs(v);
+  for (const [x,h] of tab){ if (Math.abs(a-x)<1e-9) return (v<-1e-9 && h!=='0' ? M : '') + h; }
+  return null;
+}
+function gTrig(){
+  const angs=[0,30,45,60,90,120,135,150,180,210,225,240,270,300,315,330];
+  const f=pick(['sin','cos','sin','cos','tan']);
+  let ang; do { ang=pick(angs); } while(f==='tan' && (ang===90||ang===270));
+  const r=ang*Math.PI/180;
+  const s=Math.sin(r), c=Math.cos(r);
+  const tab = f==='tan' ? TN : SC;
+  const v = f==='sin' ? s : f==='cos' ? c : s/c;
+  const other = f==='sin' ? tv(c,SC) : f==='cos' ? tv(s,SC) : (Math.abs(v)>1e-9 ? tv(1/v,TN) : null);
+  return mc('三角比', `${f} ${ang}°`, tv(v,tab), [tv(-v,tab), other],
+    ()=>{ const [x,h]=pick(tab); return (Math.random()<.5 && h!=='0' ? M : '') + h; });
+}
+// 大小比較
+function gCmp(){
+  const t=ri(0,5); let L,R,lv,rv;
+  if (t===0){
+    const ms=[2,3,5,6,7];
+    if (Math.random()<.2){ const k=ri(2,4), m=pick(ms); L=raw(k,m); R=sq(k*k*m); lv=k*Math.sqrt(m); rv=Math.sqrt(k*k*m); }
+    else {
+      let k1,m1,k2,m2;
+      do { k1=ri(1,5); m1=pick(ms); k2=ri(1,5); m2=pick(ms); lv=k1*Math.sqrt(m1); rv=k2*Math.sqrt(m2); }
+      while (m1===m2 || k1*k1*m1===k2*k2*m2 || Math.abs(lv-rv)/Math.max(lv,rv)>0.2);
+      L=raw(k1,m1); R=raw(k2,m2);
+    }
+  } else if (t===1){
+    const b=pick([2,3]); let x,n;
+    if (Math.random()<.2){ n=ri(2, b===2?5:3); x=b**n; }
+    else { do { x=ri(3, b===2?60:80); } while(isPow(x,b)); n=Math.round(Math.log(x)/Math.log(b)); }
+    L=lg(b,x); R=''+n; lv=Math.log(x)/Math.log(b); rv=n;
+  } else if (t===2){
+    if (Math.random()<.2){
+      const E=[[4,9,2,3],[9,4,3,2],[8,27,2,3],[4,25,2,5],[9,25,3,5],[8,125,2,5]];
+      const [a1,b1,a2,b2]=pick(E); L=lg(a1,b1); R=lg(a2,b2);
+      lv=Math.log(b1)/Math.log(a1); rv=Math.log(b2)/Math.log(a2);
+    } else {
+      let a1,b1,a2,b2;
+      do { a1=ri(2,9); b1=ri(2,9); a2=ri(2,9); b2=ri(2,9);
+           lv=Math.log(b1)/Math.log(a1); rv=Math.log(b2)/Math.log(a2); }
+      while (a1===b1 || a2===b2 || (a1===a2&&b1===b2) || Math.abs(lv-rv)<1e-9 || Math.abs(lv-rv)>0.5);
+      L=lg(a1,b1); R=lg(a2,b2);
+    }
+  } else if (t===3){
+    let p,q,r,s;
+    do { q=ri(3,13); s=ri(3,13); p=ri(1,q-1); r=ri(1,s-1); lv=p/q; rv=r/s; }
+    while (q===s || gcd(p,q)!==1 || gcd(r,s)!==1 || Math.abs(lv-rv)>0.08);
+    L=frx(p,q); R=frx(r,s);
+  } else if (t===4){
+    if (Math.random()<.15){
+      const E=[[2,2,4,4],[3,2,9,4],[2,3,4,6],[5,2,25,4]];
+      const [a,m,b,n]=pick(E); L=pw(a,'1/'+m); R=pw(b,'1/'+n); lv=a**(1/m); rv=b**(1/n);
+    } else {
+      let a,m,b,n;
+      do { a=ri(2,10); b=ri(2,10); m=ri(2,5); n=ri(2,5); lv=a**(1/m); rv=b**(1/n); }
+      while (m===n || Math.abs(lv-rv)<1e-9 || Math.abs(lv-rv)>0.3);
+      L=pw(a,'1/'+m); R=pw(b,'1/'+n);
+    }
+  } else {
+    const squares=[4,9];
+    let s,a,c;
+    do { s=ri(8,14); a=ri(2,Math.floor((s-1)/2)); c=ri(2,Math.floor((s-1)/2)); }
+    while (a===c || [a,s-a,c,s-c].some(v=>squares.includes(v)));
+    L=`${sq(a)} + ${sq(s-a)}`; R=`${sq(c)} + ${sq(s-c)}`;
+    lv=Math.sqrt(a)+Math.sqrt(s-a); rv=Math.sqrt(c)+Math.sqrt(s-c);
+  }
+  if (Math.random()<.5){ [L,R]=[R,L]; [lv,rv]=[rv,lv]; }
+  const d=lv-rv, ans = Math.abs(d)<1e-9 ? 2 : d>0 ? 0 : 1;
+  return { cat:'大小比較', type:'cmp', q:`<span class="cmpq">${L}<span class="box">?</span>${R}</span>`,
+           choices:['＞','＜','＝'], answer:ans, L, R };
+}
+
+const CATS = {
+  '計算':       { gens:[gSign,gFrac,gExpand], w:2 },
+  'ルート':     { gens:[gSqrt], w:1 },
+  '指数・対数': { gens:[gPow,gLog], w:1.5 },
+  '三角比':     { gens:[gTrig], w:1 },
+  '大小比較':   { gens:[gCmp], w:2.5 },
+};
+
+/* ================= state ================= */
+let duration=30, enabled=new Set(Object.keys(CATS));
+let tStart=0, raf=0, running=false, locked=false, fbTimer=0;
+let cur=null, lastQ='', hist=[], correct=0, answered=0;
+
+const store = {
+  get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+
+/* ================= start screen ================= */
+const catsEl=$('#cats');
+for (const name of Object.keys(CATS)){
+  const b=document.createElement('button');
+  b.className='chip on'; b.textContent=name;
+  b.onclick=()=>{
+    if (enabled.has(name)){ if (enabled.size===1) return; enabled.delete(name); b.classList.remove('on'); }
+    else { enabled.add(name); b.classList.add('on'); }
+  };
+  catsEl.appendChild(b);
+}
+document.querySelectorAll('#timeSeg button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#timeSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); duration=+b.dataset.t; showBest();
+  };
+});
+function showBest(){
+  const bst=store.get('patto_best_'+duration);
+  $('#best').textContent = bst ? `${duration}秒のベスト：${bst.c}問正解（正答率 ${bst.p}%）` : '';
+}
+showBest();
+
+function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('#'+id).classList.add('active'); }
+
+/* ================= game ================= */
+function genQ(){
+  const names=[...enabled], tot=names.reduce((s,n)=>s+CATS[n].w,0);
+  for (let tries=0; tries<20; tries++){
+    let r=Math.random()*tot, name=names[0];
+    for (const n of names){ r-=CATS[n].w; if (r<=0){ name=n; break; } }
+    try {
+      const q=pick(CATS[name].gens)();
+      if (q.answer>=0 && q.q!==lastQ && (q.type==='cmp' || q.choices.length===4)){ lastQ=q.q; return q; }
+    } catch(e){}
+  }
+  return gSign();
+}
+
+function startGame(){
+  hist=[]; correct=0; answered=0; locked=false; lastQ='';
+  $('#cCount').textContent='0'; $('#aCount').textContent='0';
+  show('game'); running=true; tStart=performance.now();
+  nextQ(); tick();
+}
+
+function tick(){
+  if (!running) return;
+  const left=Math.max(0, duration-(performance.now()-tStart)/1000);
+  $('#sec').textContent=left.toFixed(1);
+  $('#barFill').style.width=(left/duration*100)+'%';
+  const low=left<=5;
+  $('#time').classList.toggle('low',low); $('#barFill').classList.toggle('low',low);
+  if (left<=0){ endGame(true); return; }
+  raf=requestAnimationFrame(tick);
+}
+
+function nextQ(){
+  cur=genQ(); locked=false;
+  const card=$('#card'); card.classList.remove('ok','ng');
+  $('#qCat').textContent=cur.cat;
+  $('#qNo').textContent=`第${answered+1}問`;
+  $('#qText').innerHTML=cur.q;
+  const box=$('#choices'); box.innerHTML='';
+  box.classList.toggle('cmp', cur.type==='cmp');
+  cur.choices.forEach((c,i)=>{
+    const b=document.createElement('button');
+    b.className='choice'; b.innerHTML=`<span class="k">${i+1}</span>${c}`;
+    b.onclick=()=>answer(i);
+    box.appendChild(b);
+  });
+  cur.t0=performance.now();
+}
+
+function answer(i){
+  if (!running || locked) return;
+  locked=true; answered++;
+  const ok = i===cur.answer;
+  if (ok) correct++;
+  hist.push({ q:cur.q, type:cur.type, choices:cur.choices, chosen:i, answer:cur.answer, ok });
+  $('#cCount').textContent=correct; $('#aCount').textContent=answered;
+  const btns=$('#choices').children;
+  btns[cur.answer].classList.add('right');
+  if (!ok) btns[i].classList.add('wrong');
+  $('#card').classList.add(ok?'ok':'ng');
+  $('#mark').textContent= ok ? '○' : '×';
+  fbTimer=setTimeout(()=>{ if (running) nextQ(); }, ok ? 260 : 750);
+}
+
+function endGame(timeUp){
+  running=false; cancelAnimationFrame(raf); clearTimeout(fbTimer);
+  const elapsed=Math.min(duration,(performance.now()-tStart)/1000);
+  const p = answered ? Math.round(correct/answered*100) : 0;
+  $('#resTitle').textContent = timeUp ? 'タイムアップ！' : 'おつかれさま';
+  $('#pct').textContent = answered ? p+'%' : '—';
+  $('#sCorrect').textContent=correct;
+  $('#sAns').textContent=answered;
+  $('#sPace').textContent = answered ? (elapsed/answered).toFixed(1) : '-';
+  const arc=$('#ringArc'), C=502.65;
+  arc.style.stroke = p>=90 ? '#1f9d55' : p>=70 ? '#e0a100' : '#d64545';
+  arc.style.strokeDashoffset=C;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{ arc.style.strokeDashoffset = C*(1-(answered?p/100:0)); }));
+  $('#comment').textContent =
+    !answered ? 'まだ1問も解いてないよ' :
+    p===100 ? 'ノーミス！完璧' :
+    p>=90 ? 'かなり正確。この調子' :
+    p>=70 ? 'あと一歩。ミスした問題を見直そう' : 'スピードより正確さを意識してみよう';
+
+  // best
+  let nb='';
+  if (timeUp && answered){
+    const key='patto_best_'+duration, bst=store.get(key);
+    if (!bst || correct>bst.c || (correct===bst.c && p>bst.p)){ store.set(key,{c:correct,p}); if (bst) nb='★ ベスト更新！'; }
+  }
+  $('#newBest').textContent=nb;
+
+  // review
+  const miss=hist.filter(h=>!h.ok), rv=$('#review');
+  if (!answered){ rv.innerHTML='<div class="empty">解答した問題はありません</div>'; }
+  else if (!miss.length){ rv.innerHTML='<h3>ミスした問題</h3><div class="empty">なし！全問正解 🎉</div>'; }
+  else {
+    rv.innerHTML = `<h3>ミスした問題（${miss.length}問）</h3>` + miss.map(h=>{
+      const q = h.q.replace(/<span class="ask">/g,'<span class="ask">');
+      const qq = h.type==='cmp'
+        ? h.q.replace('<span class="box">?</span>', `<span class="box" style="border-style:solid;color:#1f9d55;border-color:#1f9d55">${h.choices[h.answer]}</span>`)
+        : q;
+      return `<div class="rv"><div class="rq">${qq}</div>
+        <div class="ra"><span class="y">あなた：<span class="v">${h.choices[h.chosen]}</span></span>
+        <span class="c">正解：<span class="v">${h.choices[h.answer]}</span></span></div></div>`;
+    }).join('');
+  }
+  show('result');
+}
+
+$('#startBtn').onclick=startGame;
+$('#retryBtn').onclick=startGame;
+$('#backBtn').onclick=()=>{ showBest(); show('start'); };
+$('#quitBtn').onclick=()=>{ if (running) endGame(false); };
+document.addEventListener('keydown',e=>{
+  if (running){
+    const n=parseInt(e.key,10);
+    if (n>=1 && n<=cur.choices.length) answer(n-1);
+    if (e.key==='Escape') endGame(false);
+  } else if (e.key==='Enter' && !$('#game').classList.contains('active')) startGame();
+});
+</script>
+</body>
+</html>
