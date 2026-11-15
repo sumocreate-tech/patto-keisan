@@ -34,7 +34,10 @@
   .primary:active{transform:scale(.98)}
   .secondary{width:100%;border:1.5px solid var(--ink);background:transparent;color:var(--ink);font-size:16px;font-weight:700;padding:14px;border-radius:16px;cursor:pointer;font-family:inherit;margin-top:10px}
   .best{text-align:center;color:var(--sub);font-size:13px;margin-top:14px;min-height:1em}
-  .tip{font-size:12px;color:var(--sub);margin-top:6px;line-height:1.6}
+  .tip{font-size:12px;color:var(--sub);margin-top:10px;line-height:1.6}
+  .modeDesc{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.6}
+  .seg button{font-size:15px}
+  .streak{font-size:13px;color:var(--warn);font-weight:800;text-align:center;height:18px;margin-top:-8px;margin-bottom:6px}
 
   /* ---------- game ---------- */
   .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -113,15 +116,23 @@
     <h1>パッと<span>計算</span></h1>
     <p class="sub">共テ数学の「うっかりミス」をなくす瞬発トレーニング</p>
     <div class="panel">
+      <div class="label">モード</div>
+      <div class="seg" id="modeSeg">
+        <button data-m="ta" class="on">タイムアタック</button>
+        <button data-m="endless">エンドレス</button>
+      </div>
+      <div class="modeDesc" id="modeDesc"></div>
+      <div id="timeWrap">
       <div class="label">制限時間</div>
       <div class="seg" id="timeSeg">
         <button data-t="30" class="on">30秒</button>
         <button data-t="60">60秒</button>
         <button data-t="90">90秒</button>
       </div>
+      </div>
       <div class="label">出題ジャンル</div>
       <div class="chips" id="cats"></div>
-      <div class="tip">時間内にできるだけ多く解こう。「終了」でいつでもやめられるよ。</div>
+      <div class="tip">「終了」でいつでもやめられるよ。</div>
     </div>
     <button id="startBtn" class="primary">スタート</button>
     <p class="best" id="best"></p>
@@ -135,6 +146,7 @@
       <button id="quitBtn" class="ghost">終了</button>
     </div>
     <div class="bar"><div id="barFill"></div></div>
+    <div class="streak" id="streak"></div>
     <div class="card" id="card">
       <div class="cat" id="qCat"></div>
       <div class="qno" id="qNo"></div>
@@ -159,7 +171,7 @@
     <div class="stats">
       <div class="stat"><b id="sCorrect">0</b><span>正解</span></div>
       <div class="stat"><b id="sAns">0</b><span>解答数</span></div>
-      <div class="stat"><b id="sPace">-</b><span>1問あたり(秒)</span></div>
+      <div class="stat"><b id="sPace">-</b><span id="sPaceL">1問あたり(秒)</span></div>
     </div>
     <div class="review" id="review"></div>
     <button id="retryBtn" class="primary">もう一度</button>
@@ -409,9 +421,10 @@ const CATS = {
 };
 
 /* ================= state ================= */
-let duration=30, enabled=new Set(Object.keys(CATS));
-let tStart=0, raf=0, running=false, locked=false, fbTimer=0;
-let cur=null, lastQ='', hist=[], correct=0, answered=0;
+const Q_LIMIT=10;   // エンドレス：1問の制限時間(秒)
+let mode='ta', duration=30, enabled=new Set(Object.keys(CATS));
+let tStart=0, qStart=0, raf=0, running=false, locked=false, fbTimer=0;
+let cur=null, lastQ='', hist=[], correct=0, answered=0, streak=0, maxStreak=0;
 
 const store = {
   get(k){ try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } },
@@ -435,11 +448,29 @@ document.querySelectorAll('#timeSeg button').forEach(b=>{
     b.classList.add('on'); duration=+b.dataset.t; showBest();
   };
 });
-function showBest(){
-  const bst=store.get('patto_best_'+duration);
-  $('#best').textContent = bst ? `${duration}秒のベスト：${bst.c}問正解（正答率 ${bst.p}%）` : '';
+document.querySelectorAll('#modeSeg button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); mode=b.dataset.m; updateMode();
+  };
+});
+function updateMode(){
+  $('#timeWrap').style.display = mode==='ta' ? '' : 'none';
+  $('#modeDesc').textContent = mode==='ta'
+    ? '制限時間内にどれだけ多く正解できるか挑戦。'
+    : `1問${Q_LIMIT}秒。時間切れは不正解扱いで次の問題へ。「終了」を押すまで続くよ。`;
+  showBest();
 }
-showBest();
+function showBest(){
+  if (mode==='ta'){
+    const bst=store.get('patto_best_'+duration);
+    $('#best').textContent = bst ? `${duration}秒のベスト：${bst.c}問正解（正答率 ${bst.p}%）` : '';
+  } else {
+    const bst=store.get('patto_best_endless');
+    $('#best').textContent = bst ? `エンドレスのベスト：${bst}問連続正解` : '';
+  }
+}
+updateMode();
 
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('#'+id).classList.add('active'); }
 
@@ -458,21 +489,31 @@ function genQ(){
 }
 
 function startGame(){
-  hist=[]; correct=0; answered=0; locked=false; lastQ='';
-  $('#cCount').textContent='0'; $('#aCount').textContent='0';
+  hist=[]; correct=0; answered=0; streak=0; maxStreak=0; locked=false; lastQ='';
+  $('#cCount').textContent='0'; $('#aCount').textContent='0'; $('#streak').textContent='';
   show('game'); running=true; tStart=performance.now();
   nextQ(); tick();
 }
 
 function tick(){
   if (!running) return;
-  const left=Math.max(0, duration-(performance.now()-tStart)/1000);
-  $('#sec').textContent=left.toFixed(1);
-  $('#barFill').style.width=(left/duration*100)+'%';
-  const low=left<=5;
-  $('#time').classList.toggle('low',low); $('#barFill').classList.toggle('low',low);
-  if (left<=0){ endGame(true); return; }
+  const now=performance.now();
+  if (mode==='ta'){
+    const left=Math.max(0, duration-(now-tStart)/1000);
+    setTimer(left, duration, 5);
+    if (left<=0){ endGame(true); return; }
+  } else if (!locked){
+    const left=Math.max(0, Q_LIMIT-(now-qStart)/1000);
+    setTimer(left, Q_LIMIT, 3);
+    if (left<=0){ answer(-1); }
+  }
   raf=requestAnimationFrame(tick);
+}
+function setTimer(left, total, lowAt){
+  $('#sec').textContent=left.toFixed(1);
+  $('#barFill').style.width=(left/total*100)+'%';
+  const low=left<=lowAt;
+  $('#time').classList.toggle('low',low); $('#barFill').classList.toggle('low',low);
 }
 
 function nextQ(){
@@ -489,33 +530,41 @@ function nextQ(){
     b.onclick=()=>answer(i);
     box.appendChild(b);
   });
-  cur.t0=performance.now();
+  qStart=performance.now();
 }
 
-function answer(i){
+function answer(i){   // i=-1 は時間切れ
   if (!running || locked) return;
   locked=true; answered++;
   const ok = i===cur.answer;
-  if (ok) correct++;
+  if (ok){ correct++; streak++; maxStreak=Math.max(maxStreak,streak); } else streak=0;
   hist.push({ q:cur.q, type:cur.type, choices:cur.choices, chosen:i, answer:cur.answer, ok });
   $('#cCount').textContent=correct; $('#aCount').textContent=answered;
+  $('#streak').textContent = streak>=3 ? `🔥 ${streak}連続正解` : '';
   const btns=$('#choices').children;
   btns[cur.answer].classList.add('right');
-  if (!ok) btns[i].classList.add('wrong');
+  if (i>=0 && !ok) btns[i].classList.add('wrong');
   $('#card').classList.add(ok?'ok':'ng');
-  $('#mark').textContent= ok ? '○' : '×';
+  $('#mark').textContent= ok ? '○' : i<0 ? '時間切れ' : '×';
+  $('#mark').style.fontSize = i<0 ? '24px' : '';
   fbTimer=setTimeout(()=>{ if (running) nextQ(); }, ok ? 260 : 750);
 }
 
 function endGame(timeUp){
   running=false; cancelAnimationFrame(raf); clearTimeout(fbTimer);
-  const elapsed=Math.min(duration,(performance.now()-tStart)/1000);
+  const elapsed=(performance.now()-tStart)/1000;
   const p = answered ? Math.round(correct/answered*100) : 0;
-  $('#resTitle').textContent = timeUp ? 'タイムアップ！' : 'おつかれさま';
+  $('#resTitle').textContent = mode==='endless' ? 'エンドレス 結果' : timeUp ? 'タイムアップ！' : 'おつかれさま';
   $('#pct').textContent = answered ? p+'%' : '—';
   $('#sCorrect').textContent=correct;
   $('#sAns').textContent=answered;
-  $('#sPace').textContent = answered ? (elapsed/answered).toFixed(1) : '-';
+  if (mode==='ta'){
+    $('#sPaceL').textContent='1問あたり(秒)';
+    $('#sPace').textContent = answered ? (Math.min(duration,elapsed)/answered).toFixed(1) : '-';
+  } else {
+    $('#sPaceL').textContent='最大連続正解';
+    $('#sPace').textContent = maxStreak;
+  }
   const arc=$('#ringArc'), C=502.65;
   arc.style.stroke = p>=90 ? '#1f9d55' : p>=70 ? '#e0a100' : '#d64545';
   arc.style.strokeDashoffset=C;
@@ -528,9 +577,13 @@ function endGame(timeUp){
 
   // best
   let nb='';
-  if (timeUp && answered){
+  if (mode==='ta' && timeUp && answered){
     const key='patto_best_'+duration, bst=store.get(key);
     if (!bst || correct>bst.c || (correct===bst.c && p>bst.p)){ store.set(key,{c:correct,p}); if (bst) nb='★ ベスト更新！'; }
+  }
+  if (mode==='endless' && maxStreak>0){
+    const bst=store.get('patto_best_endless');
+    if (!bst || maxStreak>bst){ store.set('patto_best_endless',maxStreak); if (bst) nb='★ 連続正解ベスト更新！'; }
   }
   $('#newBest').textContent=nb;
 
@@ -545,7 +598,7 @@ function endGame(timeUp){
         ? h.q.replace('<span class="box">?</span>', `<span class="box" style="border-style:solid;color:#1f9d55;border-color:#1f9d55">${h.choices[h.answer]}</span>`)
         : q;
       return `<div class="rv"><div class="rq">${qq}</div>
-        <div class="ra"><span class="y">あなた：<span class="v">${h.choices[h.chosen]}</span></span>
+        <div class="ra"><span class="y">あなた：<span class="v">${h.chosen<0 ? '時間切れ' : h.choices[h.chosen]}</span></span>
         <span class="c">正解：<span class="v">${h.choices[h.answer]}</span></span></div></div>`;
     }).join('');
   }
