@@ -46,6 +46,24 @@
   .custom input{width:110px;font-size:20px;font-weight:700;padding:10px;border:1.5px solid var(--accent);border-radius:12px;font-family:inherit;text-align:center;background:#fff;color:var(--ink)}
   .custom span{font-weight:700}
   .custom small{color:var(--sub);font-size:12px}
+  .nameIn{width:100%;font-size:16px;font-weight:700;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;font-family:inherit;background:#fff;color:var(--ink)}
+  .rankBox{display:none;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px}
+  .rkT{font-size:13px;color:var(--sub);font-weight:700;margin-bottom:6px}
+  .rkMe{font-size:17px;font-weight:800;margin:2px 0 8px;line-height:1.5}
+  .rkMe em{font-style:normal;color:var(--accent)}
+  .rkSub{font-size:13px;color:var(--sub);margin:4px 0 8px}
+  .rkRow{display:flex;gap:8px;align-items:center}
+  .rkRow .ghost{white-space:nowrap}
+  .rkList{margin:0;padding:0;list-style:none}
+  .rkList li{display:flex;align-items:baseline;gap:10px;padding:8px 4px;border-top:1px solid var(--line);font-size:15px}
+  .rkList li:first-child{border-top:none}
+  .rkList .rk{width:44px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--sub)}
+  .rkList li:nth-child(-n+3) .rk{color:var(--warn)}
+  .rkList .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+  .rkList .rc{font-variant-numeric:tabular-nums;color:var(--ink)}
+  .rkList li.me{background:#eef3ff;border-radius:8px}
+  .rkList li.gap{justify-content:center;color:var(--sub);padding:2px}
+  .boards{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
   .streak{font-size:13px;color:var(--warn);font-weight:800;text-align:center;height:18px;margin-top:-8px;margin-bottom:6px}
 
   /* ---------- game ---------- */
@@ -147,18 +165,21 @@
       <div id="qWrap" style="display:none">
       <div class="label">1問あたりの制限時間</div>
       <div class="seg" id="qSeg">
-        <button data-t="5">5秒</button>
         <button data-t="10" class="on">10秒</button>
-        <button data-t="15">15秒</button>
+        <button data-t="20">20秒</button>
+        <button data-t="30">30秒</button>
         <button data-t="custom">カスタム</button>
       </div>
       <div class="custom" id="qCustom"><input id="qInput" type="number" inputmode="numeric" min="2" max="60" value="8"><span>秒</span><small>2〜60秒</small></div>
       </div>
       <div class="label">出題ジャンル</div>
       <div class="chips" id="cats"></div>
-      <div class="tip">「終了」でいつでもやめられるよ。</div>
+      <div class="label">なまえ（ランキング用）</div>
+      <input id="nameInput" class="nameIn" maxlength="12" placeholder="未入力だと登録されません" autocomplete="off">
+      <div class="tip">「終了」でいつでもやめられるよ。ランキング対象はカスタム以外の時間設定です。</div>
     </div>
     <button id="startBtn" class="primary">スタート</button>
+    <button id="rankBtn" class="secondary">🏆 ランキングを見る</button>
     <p class="best" id="best"></p>
   </section>
 
@@ -180,6 +201,14 @@
     <div class="choices" id="choices"></div>
   </section>
 
+  <!-- RANKING -->
+  <section id="ranking" class="screen">
+    <div class="resTitle">🏆 ランキング</div>
+    <div class="boards" id="boards"></div>
+    <div class="rankBox" id="rkMain" style="display:block"></div>
+    <button id="rkBack" class="secondary">設定に戻る</button>
+  </section>
+
   <!-- RESULT -->
   <section id="result" class="screen">
     <div class="resTitle" id="resTitle">結果</div>
@@ -197,6 +226,7 @@
       <div class="stat"><b id="sAns">0</b><span>解答数</span></div>
       <div class="stat"><b id="sPace">-</b><span id="sPaceL">1問あたり(秒)</span></div>
     </div>
+    <div class="rankBox" id="rankBox"></div>
     <div class="review" id="review"></div>
     <button id="retryBtn" class="primary">もう一度</button>
     <button id="backBtn" class="secondary">設定に戻る</button>
@@ -204,6 +234,13 @@
 </div>
 
 <script>
+/* ================= online ranking (Google Apps Script + スプレッドシート) ================= */
+// ★ Apps Script を「ウェブアプリ」として公開して出るURLをここに貼る（空のままならランキング無効）
+const GAS_URL = '';
+const BOARDS=[['ta30','タイムアタック：30秒'],['ta60','タイムアタック：60秒'],['ta90','タイムアタック：90秒'],
+              ['en10','エンドレス：1問10秒'],['en20','エンドレス：1問20秒'],['en30','エンドレス：1問30秒']];
+const BTITLE=Object.fromEntries(BOARDS);
+
 /* ================= helpers ================= */
 const $ = s => document.querySelector(s);
 const M = '−';
@@ -622,6 +659,81 @@ function showBest(){
 }
 updateMode();
 
+/* ---- ranking ---- */
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sbOn=()=>!!GAS_URL;
+const cleanName=v=>String(v||'').trim().slice(0,12).replace(/^[=+\-@]+/,'');
+const getName=()=> cleanName(store.get('patto_name'));
+const setName=v=>{ store.set('patto_name',cleanName(v)); };
+const fmtRec=(b,sc)=> b.startsWith('ta') ? `${sc}問` : `${sc}問連続`;
+let gameBoard=null;
+
+async function fetchBoard(b){
+  const r=await fetch(`${GAS_URL}?board=${b}`);
+  if (!r.ok) throw new Error('HTTP '+r.status);
+  const rows=await r.json(), seen=new Set(), out=[];
+  for (const x of rows){ if (seen.has(x.name)) continue; seen.add(x.name); out.push(x); }   // 同名は最高記録のみ
+  return out;
+}
+function listHTML(list,b,name,limit){
+  const top=list.slice(0,limit);
+  let h=top.map((x,i)=>`<li class="${x.name===name?'me':''}"><span class="rk">${i+1}位</span><span class="nm">${esc(x.name)}</span><span class="rc">記録「${fmtRec(b,x.score)}」</span></li>`).join('');
+  const mi=list.findIndex(x=>x.name===name);
+  if (mi>=limit){ h+=`<li class="gap">⋮</li><li class="me"><span class="rk">${mi+1}位</span><span class="nm">${esc(name)}</span><span class="rc">記録「${fmtRec(b,list[mi].score)}」</span></li>`; }
+  return `<ul class="rkList">${h||'<li class="gap">まだ記録がありません</li>'}</ul>`;
+}
+async function rankFlow(score,acc,board){
+  const box=$('#rankBox'); box.style.display='block';
+  const head=`<div class="rkT">${BTITLE[board]}</div>`;
+  const name=getName();
+  if (!name){
+    box.innerHTML=head+`<div class="rkSub">なまえを入れるとランキングに登録できるよ</div><div class="rkRow"><input id="rkName" class="nameIn" maxlength="12" placeholder="なまえ" autocomplete="off"><button id="rkGo" class="ghost">登録</button></div>`;
+    $('#rkGo').onclick=()=>{ const v=cleanName($('#rkName').value); if (!v) return; setName(v); $('#nameInput').value=getName(); rankFlow(score,acc,board); };
+    return;
+  }
+  box.innerHTML=head+'<div class="rkSub">ランキングに登録中…</div>';
+  try{
+    const pk=`patto_posted_${board}_${name}`, prev=store.get(pk);
+    let updated=true;
+    if (!prev || score>prev.s || (score===prev.s && acc>prev.a)){
+      const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({board,name,score,acc})});
+      if (!r.ok || !(await r.json()).ok) throw new Error('post failed');
+      store.set(pk,{s:score,a:acc});
+    } else updated=false;
+    const list=await fetchBoard(board), mi=list.findIndex(x=>x.name===name);
+    const me = mi>=0 ? `${esc(name)}　記録「${fmtRec(board,list[mi].score)}」<em>${mi+1}位</em>` : `${esc(name)}　記録「${fmtRec(board,score)}」<em>圏外</em>`;
+    box.innerHTML=head+`<div class="rkMe">${me}</div>`
+      + (updated ? '' : '<div class="rkSub">今回は自己ベスト未満なので、登録済みのベスト記録の順位を表示しています</div>')
+      + listHTML(list,board,name,5);
+  }catch(e){
+    box.innerHTML=head+'<div class="rkSub">ランキングに接続できませんでした（通信状況を確認してね）</div>';
+  }
+}
+async function openRanking(b){
+  show('ranking');
+  const bx=$('#boards');
+  if (!bx.children.length){
+    BOARDS.forEach(([k,t])=>{ const c=document.createElement('button'); c.className='chip'; c.dataset.b=k; c.textContent=t.replace('タイムアタック：','TA ').replace('エンドレス：1問','エンドレス '); c.onclick=()=>loadBoard(k); bx.appendChild(c); });
+  }
+  loadBoard(b);
+}
+async function loadBoard(b){
+  document.querySelectorAll('#boards .chip').forEach(c=>c.classList.toggle('on',c.dataset.b===b));
+  const box=$('#rkMain'), head=`<div class="rkT">${BTITLE[b]}</div>`;
+  if (!sbOn()){ box.innerHTML=head+'<div class="rkSub">ランキングはまだ設定されていません</div>'; return; }
+  box.innerHTML=head+'<div class="rkSub">読み込み中…</div>';
+  try{
+    const list=await fetchBoard(b);
+    if ($('#boards .chip.on')?.dataset.b!==b) return;   // 切り替え済みなら破棄
+    box.innerHTML=head+listHTML(list,b,getName(),20);
+  }catch(e){ box.innerHTML=head+'<div class="rkSub">ランキングに接続できませんでした</div>'; }
+}
+$('#nameInput').value=getName();
+$('#nameInput').oninput=e=>setName(e.target.value);
+$('#rankBtn').onclick=()=>openRanking(
+  mode==='ta' ? (tSel!=='custom'?'ta'+tSel:'ta30') : (qSel!=='custom'?'en'+qSel:'en10'));
+$('#rkBack').onclick=()=>{ showBest(); show('start'); };
+
 function show(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $('#'+id).classList.add('active'); }
 
 /* ================= game ================= */
@@ -640,6 +752,7 @@ function genQ(){
 
 function startGame(){
   duration=getDur(); qLimit=getQL();
+  gameBoard = mode==='ta' ? (tSel==='custom'?null:'ta'+duration) : (qSel==='custom'?null:'en'+qLimit);
   hist=[]; correct=0; answered=0; streak=0; maxStreak=0; locked=false; lastQ='';
   $('#cCount').textContent='0'; $('#aCount').textContent='0'; $('#streak').textContent='';
   show('game'); running=true; tStart=performance.now();
@@ -753,6 +866,13 @@ function endGame(timeUp){
         <span class="c">正解：<span class="v">${h.choices[h.answer]}</span></span></div></div>`;
     }).join('');
   }
+  // online ranking
+  const rb=$('#rankBox'); rb.style.display='none';
+  const sc = mode==='ta' ? correct : maxStreak;
+  const eligible = answered>0 && sc>0 && (mode==='endless' || timeUp);
+  if (!gameBoard){ rb.style.display='block'; rb.innerHTML='<div class="rkSub">カスタム時間はランキング対象外です</div>'; }
+  else if (!sbOn()){ /* 未設定なら何も出さない */ }
+  else if (eligible) rankFlow(sc,p,gameBoard);
   show('result');
 }
 
@@ -765,7 +885,9 @@ document.addEventListener('keydown',e=>{
     const n=parseInt(e.key,10);
     if (n>=1 && n<=cur.choices.length) answer(n-1);
     if (e.key==='Escape') endGame(false);
-  } else if (e.key==='Enter' && !$('#game').classList.contains('active')) startGame();
+  } else if (e.key==='Enter' && $('#start').classList.contains('active') || e.key==='Enter' && $('#result').classList.contains('active')){
+    if (e.target.tagName!=='INPUT') startGame();
+  }
 });
 </script>
 </body>
