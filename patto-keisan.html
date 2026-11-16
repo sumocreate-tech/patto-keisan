@@ -673,14 +673,13 @@ async function fetchBoard(b){
   if (!r.ok) throw new Error('HTTP '+r.status);
   return await r.json();   // 同じ名前でも別々に載せる
 }
-const myIdx=(list,b,name)=>{       // 自分の登録済みベスト記録の位置（同名の他人と区別する）
-  const ref=store.get(`patto_posted_${b}_${name}`);
-  const i= ref ? list.findIndex(x=>x.name===name && x.score===ref.s && x.acc===ref.a) : -1;
-  return i>=0 ? i : list.findIndex(x=>x.name===name);
-};
-function listHTML(list,b,name,limit){
-  const top=list.slice(0,limit), mi=myIdx(list,b,name);
-  let h=top.map((x,i)=>`<li class="${i===mi?'me':''}"><span class="rk">${i+1}位</span><span class="nm">${esc(x.name)}</span><span class="rc">記録「${fmtRec(b,x.score)}」</span></li>`).join('');
+const myIdx=(list,name,ref)=> ref
+  ? list.findIndex(x=>x.name===name && x.score===ref.s && x.acc===ref.a)   // 今回の記録の位置
+  : list.findIndex(x=>x.name===name);                                       // 自分の名前の最上位
+function listHTML(list,b,name,limit,ref){
+  const top=list.slice(0,limit), mi=myIdx(list,name,ref);
+  const isMe=(x,i)=> ref ? i===mi : x.name===name;
+  let h=top.map((x,i)=>`<li class="${isMe(x,i)?'me':''}"><span class="rk">${i+1}位</span><span class="nm">${esc(x.name)}</span><span class="rc">記録「${fmtRec(b,x.score)}」</span></li>`).join('');
   if (mi>=limit){ h+=`<li class="gap">⋮</li><li class="me"><span class="rk">${mi+1}位</span><span class="nm">${esc(name)}</span><span class="rc">記録「${fmtRec(b,list[mi].score)}」</span></li>`; }
   return `<ul class="rkList">${h||'<li class="gap">まだ記録がありません</li>'}</ul>`;
 }
@@ -695,18 +694,11 @@ async function rankFlow(score,acc,board){
   }
   box.innerHTML=head+'<div class="rkSub">ランキングに登録中…</div>';
   try{
-    const pk=`patto_posted_${board}_${name}`, prev=store.get(pk);
-    let updated=true;
-    if (!prev || score>prev.s || (score===prev.s && acc>prev.a)){
-      const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({board,name,score,acc})});
-      if (!r.ok || !(await r.json()).ok) throw new Error('post failed');
-      store.set(pk,{s:score,a:acc});
-    } else updated=false;
-    const list=await fetchBoard(board), mi=myIdx(list,board,name);
-    const me = mi>=0 ? `${esc(name)}　記録「${fmtRec(board,list[mi].score)}」<em>${mi+1}位</em>` : `${esc(name)}　記録「${fmtRec(board,score)}」<em>圏外</em>`;
-    box.innerHTML=head+`<div class="rkMe">${me}</div>`
-      + (updated ? '' : '<div class="rkSub">今回は自己ベスト未満なので、登録済みのベスト記録の順位を表示しています</div>')
-      + listHTML(list,board,name,5);
+    const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({board,name,score,acc})});
+    if (!r.ok || !(await r.json()).ok) throw new Error('post failed');   // 毎回の記録を全部登録する
+    const ref={s:score,a:acc}, list=await fetchBoard(board), mi=myIdx(list,name,ref);
+    const me = mi>=0 ? `${esc(name)}　記録「${fmtRec(board,score)}」<em>${mi+1}位</em>` : `${esc(name)}　記録「${fmtRec(board,score)}」<em>圏外</em>`;
+    box.innerHTML=head+`<div class="rkMe">${me}</div>`+listHTML(list,board,name,5,ref);
   }catch(e){
     box.innerHTML=head+'<div class="rkSub">ランキングに接続できませんでした（通信状況を確認してね）</div>';
   }
