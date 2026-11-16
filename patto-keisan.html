@@ -175,7 +175,7 @@
       <div class="label">出題ジャンル</div>
       <div class="chips" id="cats"></div>
       <div class="label">なまえ（ランキング用）</div>
-      <input id="nameInput" class="nameIn" maxlength="12" placeholder="未入力だと登録されません" autocomplete="off">
+      <input id="nameInput" class="nameIn" maxlength="12" placeholder="未入力だと「名無し」で登録" autocomplete="off">
       <div class="tip">「終了」でいつでもやめられるよ。ランキング対象はカスタム以外の時間設定です。</div>
     </div>
     <button id="startBtn" class="primary">スタート</button>
@@ -686,16 +686,18 @@ function listHTML(list,b,name,limit,ref){
 async function rankFlow(score,acc,board){
   const box=$('#rankBox'); box.style.display='block';
   const head=`<div class="rkT">${BTITLE[board]}</div>`;
-  const name=getName();
-  if (!name){
-    box.innerHTML=head+`<div class="rkSub">なまえを入れるとランキングに登録できるよ</div><div class="rkRow"><input id="rkName" class="nameIn" maxlength="12" placeholder="なまえ" autocomplete="off"><button id="rkGo" class="ghost">登録</button></div>`;
-    $('#rkGo').onclick=()=>{ const v=cleanName($('#rkName').value); if (!v) return; setName(v); $('#nameInput').value=getName(); rankFlow(score,acc,board); };
-    return;
-  }
+  const name=getName() || '名無し';   // 名前未入力でも必ず登録する
   box.innerHTML=head+'<div class="rkSub">ランキングに登録中…</div>';
   try{
-    const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({board,name,score,acc})});
-    if (!r.ok || !(await r.json()).ok) throw new Error('post failed');   // 毎回の記録を全部登録する
+    // 毎回の記録を無条件で登録する（失敗分は端末に保存して次回まとめて再送）
+    const pend=store.get('patto_pending')||[];
+    pend.push({board,name,score,acc});
+    store.set('patto_pending',pend);
+    while (pend.length){
+      const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(pend[0])});
+      if (!r.ok || !(await r.json()).ok) throw new Error('post failed');
+      pend.shift(); store.set('patto_pending',pend);
+    }
     const ref={s:score,a:acc}, list=await fetchBoard(board), mi=myIdx(list,name,ref);
     const me = mi>=0 ? `${esc(name)}　記録「${fmtRec(board,score)}」<em>${mi+1}位</em>` : `${esc(name)}　記録「${fmtRec(board,score)}」<em>圏外</em>`;
     box.innerHTML=head+`<div class="rkMe">${me}</div>`+listHTML(list,board,name,5,ref);
@@ -863,7 +865,7 @@ function endGame(timeUp){
   // online ranking
   const rb=$('#rankBox'); rb.style.display='none';
   const sc = mode==='ta' ? correct : maxStreak;
-  const eligible = answered>0 && sc>0 && (mode==='endless' || timeUp);
+  const eligible = answered>0 && sc>0 && (mode==='endless' || timeUp);   // 0点・タイムアタックの途中終了は登録しない（自己ベスト未満でも登録する）
   if (!gameBoard){ rb.style.display='block'; rb.innerHTML='<div class="rkSub">カスタム時間はランキング対象外です</div>'; }
   else if (!sbOn()){ /* 未設定なら何も出さない */ }
   else if (eligible) rankFlow(sc,p,gameBoard);
